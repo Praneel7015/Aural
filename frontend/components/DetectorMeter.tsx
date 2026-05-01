@@ -25,17 +25,17 @@ export function DetectorMeter({ title, value01, invert }: Props) {
   return (
     <motion.div
       layout
-      className="flex flex-col gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 backdrop-blur-md"
+      className="flex flex-col gap-3 rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 p-4"
       animate={pulse ? { boxShadow: ["0 0 0 0 rgba(244,63,94,0)", "0 0 24px 2px rgba(244,63,94,0.25)", "0 0 0 0 rgba(244,63,94,0)"] } : {}}
       transition={{ duration: 1.6, repeat: pulse ? Infinity : 0 }}
     >
       <div className="flex flex-row items-start justify-between gap-3">
-        <span className="font-medium text-[var(--foreground)]">{title}</span>
-        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1", b.cls)}>
+        <span className="font-display font-bold text-lg text-black dark:text-white">{title}</span>
+        <span className={cn("rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1", b.cls)}>
           {b.label}
         </span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-black/40">
+      <div className="h-2 overflow-hidden rounded-full bg-black/10 dark:bg-white/10">
         <motion.div
           className={cn("h-full rounded-full", invert ? "bg-[var(--trust-safe)]" : "bg-[var(--trust-danger)]")}
           initial={{ width: 0 }}
@@ -43,7 +43,7 @@ export function DetectorMeter({ title, value01, invert }: Props) {
           transition={{ type: "spring", stiffness: 140, damping: 20 }}
         />
       </div>
-      <div className="text-right text-xs tabular-nums text-[var(--muted)]">{pct}% signal</div>
+      <div className="text-right text-xs font-bold tabular-nums text-black/60 dark:text-white/60">{pct}% signal</div>
     </motion.div>
   );
 }

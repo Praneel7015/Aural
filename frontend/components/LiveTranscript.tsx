@@ -31,8 +31,8 @@ function highlightText(text: string, phrases: string[]) {
       <mark
         key={i}
         className={cn(
-          "rounded px-0.5",
-          Hi ? "bg-rose-500/35 text-rose-50" : "bg-amber-500/30 text-amber-50",
+          "rounded px-1 font-bold",
+          Hi ? "bg-rose-500/35 text-rose-900 dark:text-rose-50" : "bg-amber-500/30 text-amber-900 dark:text-amber-50",
         )}
       >
         {part}
@@ -64,12 +64,12 @@ export function LiveTranscript({
       ref={ref}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
-      className="max-h-[220px] overflow-y-auto rounded-2xl border border-white/10 bg-black/35 p-4 font-[family-name:var(--font-body)] text-sm leading-relaxed text-[var(--foreground)] shadow-inner"
+      className="max-h-[220px] overflow-y-auto rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 p-4 font-body text-sm leading-relaxed text-black dark:text-white shadow-inner"
     >
       {text ? (
         <p className="whitespace-pre-wrap">{body}</p>
       ) : (
-        <p className="text-[var(--muted)]">Transcript appears as the call is processed…</p>
+        <p className="text-black/50 dark:text-white/50 italic">Transcript appears as the call is processed…</p>
       )}
     </div>
   );

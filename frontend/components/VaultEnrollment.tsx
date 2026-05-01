@@ -73,25 +73,25 @@ export function VaultEnrollment() {
 
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-8">
-      <div className="flex flex-col gap-4 rounded-3xl border border-white/10 bg-white/[0.04] p-6 backdrop-blur-xl">
-        <h2 className="font-[family-name:var(--font-display)] text-2xl text-[var(--foreground)]">
+      <div className="flex flex-col gap-4 rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 p-6">
+        <h2 className="font-display text-2xl font-bold text-black dark:text-white">
           Enroll contact
         </h2>
-        <label className="flex flex-col gap-2 text-sm text-[var(--muted)]">
+        <label className="flex flex-col gap-2 text-sm font-bold text-black/60 dark:text-white/60">
           Name
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            className="rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-[var(--foreground)] outline-none ring-emerald-400/0 transition focus:ring-2 focus:ring-emerald-400/60"
+            className="rounded-md border border-black/20 dark:border-white/20 bg-white dark:bg-black px-4 py-3 text-black dark:text-white outline-none transition focus:ring-2 focus:ring-black dark:focus:ring-white"
             placeholder="e.g. Aarav"
           />
         </label>
-        <label className="flex flex-col gap-2 text-sm text-[var(--muted)]">
+        <label className="flex flex-col gap-2 text-sm font-bold text-black/60 dark:text-white/60">
           Relationship
           <select
             value={relationship}
             onChange={(e) => setRelationship(e.target.value)}
-            className="rounded-xl border border-white/15 bg-black/40 px-4 py-3 text-[var(--foreground)] outline-none focus:ring-2 focus:ring-emerald-400/60"
+            className="rounded-md border border-black/20 dark:border-white/20 bg-white dark:bg-black px-4 py-3 text-black dark:text-white outline-none focus:ring-2 focus:ring-black dark:focus:ring-white"
           >
             {REL.map((r) => (
               <option key={r} value={r}>
@@ -105,44 +105,44 @@ export function VaultEnrollment() {
           disabled={recording}
           onClick={() => void enroll()}
           className={cn(
-            "rounded-xl px-5 py-4 font-semibold uppercase tracking-wide transition",
+            "rounded-md px-5 py-4 font-bold uppercase tracking-wide transition",
             recording
-              ? "cursor-wait bg-white/10 text-[var(--muted)]"
-              : "bg-[var(--trust-safe)] text-black hover:brightness-110 active:brightness-95",
+              ? "cursor-wait bg-black/10 dark:bg-white/10 text-black/50 dark:text-white/50"
+              : "bg-black text-white dark:bg-white dark:text-black hover:scale-105",
           )}
         >
           {recording ? `Recording… ${tick}s` : "Record 30 seconds"}
         </button>
-        {msg ? <p className="text-sm text-[var(--muted)]">{msg}</p> : null}
+        {msg ? <p className="text-sm font-bold text-black/60 dark:text-white/60">{msg}</p> : null}
       </div>
 
       <div className="flex flex-col gap-3">
-        <h3 className="font-[family-name:var(--font-display)] text-xl text-[var(--foreground)]">
+        <h3 className="font-display text-xl font-bold text-black dark:text-white">
           Vault
         </h3>
         <ul className="flex flex-col gap-2">
           {contacts.map((c) => (
             <li
               key={c.id}
-              className="flex flex-row items-center justify-between gap-4 rounded-2xl border border-white/10 bg-black/30 px-4 py-3"
+              className="flex flex-row items-center justify-between gap-4 rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 px-4 py-3"
             >
               <div className="flex flex-col">
-                <span className="font-medium text-[var(--foreground)]">{c.name}</span>
-                <span className="text-xs uppercase tracking-wide text-[var(--muted)]">
+                <span className="font-bold text-black dark:text-white">{c.name}</span>
+                <span className="text-xs font-bold uppercase tracking-wide text-black/60 dark:text-white/60">
                   {c.relationship}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => void remove(c.id)}
-                className="rounded-lg border border-white/15 px-3 py-1.5 text-xs font-semibold uppercase tracking-wide text-rose-200 hover:bg-rose-500/15"
+                className="rounded-md border border-rose-500/30 px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
               >
                 Remove
               </button>
             </li>
           ))}
           {!contacts.length ? (
-            <li className="rounded-2xl border border-dashed border-white/15 px-4 py-8 text-center text-sm text-[var(--muted)]">
+            <li className="rounded-lg border border-dashed border-black/20 dark:border-white/20 px-4 py-8 text-center text-sm font-bold text-black/60 dark:text-white/60">
               No enrolled voices yet.
             </li>
           ) : null}

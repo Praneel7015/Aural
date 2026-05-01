@@ -31,14 +31,14 @@ export function TrustGauge({ score }: { score: number }) {
           endAngle={-40}
         >
           <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-          <RadialBar background={{ fill: "rgba(255,255,255,0.06)" }} dataKey="value" cornerRadius={12} />
+          <RadialBar background={{ fill: "rgba(128,128,128,0.15)" }} dataKey="value" cornerRadius={12} />
         </RadialBarChart>
       </ResponsiveContainer>
       <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 pt-6">
-        <span className="font-[family-name:var(--font-display)] text-6xl font-semibold tabular-nums tracking-tight text-[var(--foreground)]">
+        <span className="font-display text-6xl font-bold tabular-nums tracking-tight text-black dark:text-white">
           {v}
         </span>
-        <span className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Trust</span>
+        <span className="text-xs font-bold uppercase tracking-[0.35em] text-black/60 dark:text-white/60">Trust</span>
       </div>
     </motion.div>
   );
