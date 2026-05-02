@@ -15,8 +15,21 @@ echo "=========================================="
 echo "  Verity - Deployment Setup"
 echo "=========================================="
 
+# Add 4GB swap (critical for 4GB instances)
+echo "[1/8] Setting up swap space..."
+if [ ! -f /swapfile ]; then
+    sudo fallocate -l 4G /swapfile
+    sudo chmod 600 /swapfile
+    sudo mkswap /swapfile
+    sudo swapon /swapfile
+    echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+    echo "  >> 4GB swap created"
+else
+    echo "  >> Swap already exists"
+fi
+
 # System dependencies
-echo "[1/7] Installing system dependencies..."
+echo "[2/8] Installing system dependencies..."
 sudo apt-get update -qq
 sudo apt-get install -y -qq python3.11 python3.11-venv python3.11-dev \
     python3-pip git libsndfile1 ffmpeg nginx certbot python3-certbot-nginx
@@ -54,21 +67,26 @@ WHISPER_DEVICE=cpu
 WHISPER_COMPUTE_TYPE=int8
 
 LLM_PROVIDER=featherless
-FEATHERLESS_API_KEY=REPLACE_WITH_YOUR_KEY
+FEATHERLESS_API_KEY=REPLACE_ME
 FEATHERLESS_BASE_URL=https://api.featherless.ai/v1
 FEATHERLESS_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
 
-GEMINI_API_KEY=REPLACE_WITH_YOUR_KEY
+GEMINI_API_KEY=REPLACE_ME
 GEMINI_MODEL=gemini-2.5-flash
 
 ANTISPOOF_THRESHOLD=0.5
 VOICEPRINT_MATCH_THRESHOLD=0.4
 SCAM_VERDICT_THRESHOLD=0.7
 
+# CORS: comma-separated allowed origins
+# Use * to allow all, or list specific URLs:
+# CORS_ORIGINS=https://verity-app.vercel.app,http://localhost:3000
 CORS_ORIGINS=*
 ENVEOF
-    echo "  >> Created .env -- EDIT IT with your API keys!"
-    echo "  >> Run: nano /home/ubuntu/Aural/backend/.env"
+    echo ""
+    echo "  >> .env created. ADD YOUR API KEYS:"
+    echo "  >> nano /home/ubuntu/Aural/backend/.env"
+    echo ""
 fi
 
 # Create systemd service for backend

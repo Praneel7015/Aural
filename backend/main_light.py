@@ -22,9 +22,13 @@ logger = logging.getLogger("verity")
 app = FastAPI(title="Verity", version="0.1.0")
 
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
+if "*" in origins:
+    allow_origins = ["*"]
+else:
+    allow_origins = origins or ["*"]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins or ["*"],
+    allow_origins=allow_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
