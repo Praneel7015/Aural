@@ -90,11 +90,12 @@ async def status():
         "service": "verity",
         "models": {
             "antispoof": {
-                "loaded": _antispoof is not None and _antispoof._model is not None,
-                "unavailable": _antispoof._unavailable if _antispoof else False,
+                "loaded": _antispoof is not None and (getattr(_antispoof, "_hf_model", None) is not None or getattr(_antispoof, "_aasist", None) is not None),
+                "hf_unavailable": getattr(_antispoof, "_hf_unavailable", False) if _antispoof else False,
+                "aasist_unavailable": getattr(_antispoof, "_aasist_unavailable", False) if _antispoof else False,
             },
             "speaker_verify": {
-                "loaded": _speaker is not None and _speaker._model is not None,
+                "loaded": _speaker is not None and getattr(_speaker, "_model", None) is not None,
             },
             "transcriber": {
                 "loaded": _transcriber is not None and _transcriber._model is not None,
