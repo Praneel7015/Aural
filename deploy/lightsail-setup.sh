@@ -34,13 +34,24 @@ sudo apt-get update -qq
 sudo apt-get install -y -qq python3.11 python3.11-venv python3.11-dev \
     python3-pip git libsndfile1 ffmpeg nginx certbot python3-certbot-nginx
 
-# Clone repo
-echo "[2/7] Cloning repository..."
+# Clone repo (private repo -- use SSH key or PAT)
+echo "[3/8] Cloning repository..."
 cd /home/ubuntu
 if [ -d "Aural" ]; then
     cd Aural && git pull origin main
 else
-    git clone https://github.com/Praneel7015/Aural.git
+    echo "  >> Repo is private. Choose one method:"
+    echo "  >> A) SSH: git clone git@github.com:Praneel7015/Aural.git"
+    echo "  >> B) PAT: git clone https://YOUR_TOKEN@github.com/Praneel7015/Aural.git"
+    echo ""
+    echo "  >> If you haven't cloned yet, run one of the above manually, then re-run this script."
+
+    # Try SSH first, then HTTPS
+    git clone git@github.com:Praneel7015/Aural.git 2>/dev/null || \
+    git clone https://github.com/Praneel7015/Aural.git 2>/dev/null || {
+        echo "  >> Clone failed. Clone manually and re-run this script."
+        exit 1
+    }
     cd Aural
 fi
 
