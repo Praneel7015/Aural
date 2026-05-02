@@ -1,30 +1,30 @@
 import Link from "next/link";
-
+import { ArrowLeft } from "lucide-react";
 import { VaultEnrollment } from "@/components/VaultEnrollment";
 
 export default function VaultPage() {
   return (
-    <div className="relative min-h-screen px-4 pb-16 pt-10">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.12),transparent_55%)]" />
-      <div className="relative mx-auto max-w-6xl">
-        <div className="mb-10 flex flex-row items-center justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <h1 className="font-[family-name:var(--font-display)] text-3xl font-semibold text-[var(--foreground)]">
-              Family Voice Vault
-            </h1>
-            <p className="text-sm text-[var(--muted)]">
-              Store embeddings locally on this machine for caller verification.
-            </p>
-          </div>
+    <div className="min-h-screen bg-background">
+      <header className="border-b border-border bg-card">
+        <div className="mx-auto flex max-w-7xl items-center gap-4 px-6 py-3">
+          <Link href="/" className="font-[family-name:var(--font-brand)] text-base font-semibold tracking-tight text-foreground">
+            Verity
+          </Link>
+          <div className="h-4 w-px bg-border" />
           <Link
-            href="/"
-            className="rounded-xl border border-white/15 px-4 py-2 text-sm font-semibold text-[var(--foreground)] hover:bg-white/10"
+            href="/dashboard"
+            className="inline-flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground"
           >
+            <ArrowLeft className="h-3 w-3" aria-hidden />
             Dashboard
           </Link>
+          <div className="h-4 w-px bg-border" />
+          <span className="text-xs font-medium text-muted-foreground">Voice Vault</span>
         </div>
+      </header>
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">
         <VaultEnrollment />
-      </div>
+      </main>
     </div>
   );
 }

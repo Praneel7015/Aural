@@ -23,4 +23,8 @@ export type TrustState = {
   transcript_partial: string;
   reasons: string[];
   challenge_suggestion: string | null;
+  // Extended analysis (from Gemini)
+  voice_reasoning?: string | null;
+  scam_reasoning?: string | null;
+  analysis_source?: "local" | "gemini" | "hybrid";
 };

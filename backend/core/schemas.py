@@ -29,6 +29,10 @@ class TrustState(BaseModel):
     transcript_partial: str = ""
     reasons: list[str] = Field(default_factory=list)
     challenge_suggestion: str | None = None
+    # Extended analysis fields (populated when Gemini is available)
+    voice_reasoning: str | None = None
+    scam_reasoning: str | None = None
+    analysis_source: str = "local"  # "local" | "gemini" | "hybrid"
 
 
 class ScamSignals(BaseModel):

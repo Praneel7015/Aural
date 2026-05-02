@@ -45,7 +45,7 @@ Every line of code in this repo serves this demo.
 | Speaker verification | speechbrain | `speechbrain==1.0.*` |
 | Streaming STT | whisperlivekit (uses faster-whisper) | `whisperlivekit` (latest) |
 | Audio I/O | sounddevice + soundfile | `sounddevice==0.5.*`, `soundfile==0.12.*` |
-| LLM client | anthropic (primary) or openai | `anthropic==0.39.*` |
+| LLM client | OpenAI-compatible / Gemini / Featherless | `openai>=1.54.*`, `google-generativeai>=0.8.*` |
 | Storage | SQLite (stdlib) + numpy for vectors | `numpy==1.26.*` |
 | Validation | pydantic | `pydantic==2.9.*` |
 | Env | python-dotenv | `python-dotenv==1.0.*` |
@@ -56,10 +56,9 @@ Every line of code in this repo serves this demo.
 |---|---|---|
 | Framework | Next.js 15 (App Router) | `next@^15.0.0` |
 | Language | TypeScript | `typescript@^5.6` |
-| Styling | TailwindCSS | `tailwindcss@^3.4` |
-| Components | shadcn/ui (Card, Button, Progress, Badge, Toast, Dialog) | latest |
-| Charts | Recharts (RadialBarChart for gauges) | `recharts@^2.13` |
-| Animation | Framer Motion | `framer-motion@^11` |
+| Styling | TailwindCSS v4 | `tailwindcss@^4` |
+| Charts | Recharts (RadialBarChart for gauges) | `recharts@^3.8` |
+| Animation | Framer Motion | `framer-motion@^12` |
 | State | Zustand | `zustand@^5.0` |
 | Audio capture | Web Audio API + MediaRecorder | browser-native |
 | Real-time | Native WebSocket | browser-native |
@@ -72,8 +71,8 @@ Every line of code in this repo serves this demo.
 | Synthetic voice detection (PRIMARY) | AASIST3 | `huggingface.co/lab260/AASIST3` | Single-file, plug-and-play, ~1M params, CPU-friendly |
 | Synthetic voice detection (UPGRADE PATH) | XLSR-SLS | `github.com/QiShanZhang/SLSforASVspoof-2021-DF` + `facebook/wav2vec2-xls-r-300m` on HF | Best accuracy on Speech DF Arena leaderboard but heavier setup; swap in if time permits |
 | Speaker verification | ECAPA-TDNN | `speechbrain/spkrec-ecapa-voxceleb` on HF | 192-dim embeddings, `verify_files()` one-liner |
-| Streaming transcription | Whisper distil-large-v3 | via `whisperlivekit` | Sub-second latency on CPU; falls back to `small.en` on weak hardware |
-| Conversational red-flag detection | Claude Haiku 4.5 | Anthropic API (`claude-haiku-4-5-20251001`) | Structured JSON output, fast, cheap |
+| Streaming transcription | Whisper distil-large-v3 | via `faster-whisper` | Sub-second latency on CPU; falls back to `small.en` on weak hardware |
+| Conversational red-flag detection | GPT-4o-mini / Gemini Flash / Llama 3.1 | OpenAI, Google, or Featherless API | Structured JSON output, configurable via `LLM_PROVIDER` env var |
 | TTS for demo voice cloning | ElevenLabs (free tier) | `elevenlabs.io` | Generate scam audio from teammate's 30-second voice sample |
 
 ### DevOps
@@ -734,6 +733,22 @@ Do not start any stretch goal until acceptance criteria are 100% green.
 - [ ] Working prototype runnable on a single laptop
 - [ ] All ML components clearly labeled with their pretrained sources
 - [ ] Acknowledgments section listing every model and library
+
+---
+
+## Acknowledgments
+
+### Models
+- **AASIST3** (lab260) -- audio anti-spoofing, Apache-2.0
+- **ECAPA-TDNN** (SpeechBrain / `speechbrain/spkrec-ecapa-voxceleb`) -- speaker verification, Apache-2.0
+- **Whisper distil-large-v3** (Hugging Face / `faster-whisper`) -- speech-to-text, MIT
+- **GPT-4o-mini** (OpenAI) / **Gemini 2.0 Flash** (Google) / **Llama 3.1 8B** (Meta via Featherless) -- scam-pattern classification
+
+### Libraries
+FastAPI, Uvicorn, PyTorch, torchaudio, Transformers, SpeechBrain, faster-whisper, soundfile, sounddevice, OpenAI SDK, google-generativeai, Pydantic, NumPy, python-dotenv, huggingface_hub, Next.js, React, Recharts, Framer Motion, Zustand, Tailwind CSS, Lucide Icons
+
+### Tools
+- **ElevenLabs** -- TTS voice cloning for demo scenario generation (with teammate consent)
 
 ---
 

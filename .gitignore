@@ -9,6 +9,7 @@ backend/models/
 backend/vault.db
 backend/vault/embeddings/
 backend/vendor/
+backend/weights/
 
 frontend/node_modules/
 frontend/.next/

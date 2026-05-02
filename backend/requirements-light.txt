@@ -1,0 +1,11 @@
+# Lightweight deployment -- no local ML models, uses Gemini for everything
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+pydantic==2.9.2
+pydantic-settings>=2.5.2
+python-dotenv==1.0.1
+python-multipart==0.0.17
+google-genai>=1.74.0
+openai>=1.54.0
+soundfile==0.12.1
+numpy==1.26.4

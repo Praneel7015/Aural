@@ -6,27 +6,21 @@ import soundfile as sf
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 
 from config import settings
+from deps import get_deps
 from detectors.speaker_verify import SpeakerVerifier
 from vault.store import VoiceVault
 
 router = APIRouter(prefix="/api/vault", tags=["vault"])
 
-_vault: VoiceVault | None = None
-_verifier: SpeakerVerifier | None = None
-
 
 def get_vault() -> VoiceVault:
-    global _vault
-    if _vault is None:
-        _vault = VoiceVault(settings.vault_db_path, settings.vault_embeddings_dir)
-    return _vault
+    _, _, _, _, vault = get_deps()
+    return vault
 
 
 def get_verifier() -> SpeakerVerifier:
-    global _verifier
-    if _verifier is None:
-        _verifier = SpeakerVerifier()
-    return _verifier
+    _, speaker, _, _, _ = get_deps()
+    return speaker
 
 
 @router.get("/contacts")

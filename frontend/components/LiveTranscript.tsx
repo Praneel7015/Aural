@@ -2,8 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { cn } from "@/lib/utils";
-
 function escapeRegExp(s: string) {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -12,10 +10,7 @@ function highlightText(text: string, phrases: string[]) {
   const cleaned = phrases.map((p) => p.trim()).filter(Boolean);
   if (!cleaned.length || !text) return text;
 
-  const pattern = cleaned
-    .map(escapeRegExp)
-    .sort((a, b) => b.length - a.length)
-    .join("|");
+  const pattern = cleaned.map(escapeRegExp).sort((a, b) => b.length - a.length).join("|");
   if (!pattern) return text;
 
   const re = new RegExp(`(${pattern})`, "gi");
@@ -24,16 +19,13 @@ function highlightText(text: string, phrases: string[]) {
   return parts.map((part, i) => {
     const hit = cleaned.some((p) => part.toLowerCase() === p.toLowerCase());
     if (!hit) return part;
-    const Hi =
-      /urgency|money|gift card|arrest|police|don'?t tell/i.test(part) ||
-      /wire|rupees|crypto|account/i.test(part);
+    const severe = /urgency|money|gift card|arrest|police|don'?t tell|wire|rupees|crypto|account|transfer/i.test(part);
     return (
       <mark
         key={i}
-        className={cn(
-          "rounded px-0.5",
-          Hi ? "bg-rose-500/35 text-rose-50" : "bg-amber-500/30 text-amber-50",
-        )}
+        className={`rounded-sm px-0.5 font-medium ${
+          severe ? "bg-trust-danger/25 text-trust-danger" : "bg-trust-warn/20 text-trust-warn"
+        }`}
       >
         {part}
       </mark>
@@ -41,16 +33,9 @@ function highlightText(text: string, phrases: string[]) {
   });
 }
 
-export function LiveTranscript({
-  text,
-  phrases,
-}: {
-  text: string;
-  phrases: string[];
-}) {
+export function LiveTranscript({ text, phrases }: { text: string; phrases: string[] }) {
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState(false);
-
   const body = useMemo(() => highlightText(text, phrases), [text, phrases]);
 
   useEffect(() => {
@@ -60,17 +45,22 @@ export function LiveTranscript({
   }, [text, hover]);
 
   return (
-    <div
-      ref={ref}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      className="max-h-[220px] overflow-y-auto rounded-2xl border border-white/10 bg-black/35 p-4 font-[family-name:var(--font-body)] text-sm leading-relaxed text-[var(--foreground)] shadow-inner"
-    >
-      {text ? (
-        <p className="whitespace-pre-wrap">{body}</p>
-      ) : (
-        <p className="text-[var(--muted)]">Transcript appears as the call is processed…</p>
-      )}
+    <div className="rounded-lg border border-border bg-card">
+      <div className="border-b border-border px-4 py-2.5">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">Transcript</p>
+      </div>
+      <div
+        ref={ref}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        className="max-h-[200px] overflow-y-auto px-4 py-3"
+      >
+        {text ? (
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-foreground-secondary">{body}</p>
+        ) : (
+          <p className="text-sm text-muted-foreground">Waiting for audio input...</p>
+        )}
+      </div>
     </div>
   );
 }

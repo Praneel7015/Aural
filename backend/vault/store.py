@@ -67,7 +67,12 @@ class VoiceVault:
             for r in rows
         ]
 
-    def best_match_tensor(self, query: torch.Tensor) -> tuple[str | None, float]:
+    def best_match_tensor(self, query: torch.Tensor, threshold: float = 0.45) -> tuple[str | None, float]:
+        """Return (contact_name, similarity) of best match above threshold.
+
+        Returns (None, best_score) if no contact exceeds the threshold,
+        so the dashboard shows 'No match' instead of a false match.
+        """
         q = query.detach().cpu().numpy().astype(np.float32)
         qn = np.linalg.norm(q)
         if qn < 1e-8:
@@ -82,4 +87,7 @@ class VoiceVault:
             if sim > best_score:
                 best_score = sim
                 best_name = row[0]
+        # Only return a name if similarity exceeds threshold
+        if best_score < threshold:
+            return None, best_score
         return best_name, best_score

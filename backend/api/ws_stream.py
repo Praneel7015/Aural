@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import json
+import logging
 
 import numpy as np
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -9,71 +10,76 @@ from config import settings
 from core.audio_buffer import RollingWindowBuffer
 from core.schemas import DetectorAntiSpoof, DetectorVoiceMatch, ScamSignals
 from core.trust_engine import compute_trust_state
-from detectors.antispoof import AntiSpoofDetector
-from detectors.scam_classifier import ScamClassifier
-from detectors.speaker_verify import SpeakerVerifier
-from detectors.transcriber import StreamingTranscriber
-from vault.store import VoiceVault
+from deps import get_deps
 
 router = APIRouter(tags=["ws"])
+logger = logging.getLogger("aural.ws")
 
-_antispoof: AntiSpoofDetector | None = None
-_speaker: SpeakerVerifier | None = None
-_transcriber: StreamingTranscriber | None = None
-_classifier: ScamClassifier | None = None
-_vault: VoiceVault | None = None
+# Only run scam classifier every N windows to reduce API calls
+_CLASSIFY_EVERY = 3
 
 
-def _deps():
-    global _antispoof, _speaker, _transcriber, _classifier, _vault
-    if _vault is None:
-        _vault = VoiceVault(settings.vault_db_path, settings.vault_embeddings_dir)
-    if _antispoof is None:
-        _antispoof = AntiSpoofDetector()
-    if _speaker is None:
-        _speaker = SpeakerVerifier()
-    if _transcriber is None:
-        _transcriber = StreamingTranscriber()
-    if _classifier is None:
-        _classifier = ScamClassifier()
-    return _antispoof, _speaker, _transcriber, _classifier, _vault
-
-
-async def _process_window(w: np.ndarray, antispoof, speaker, transcriber, classifier, vault):
+async def _process_window(
+    w: np.ndarray,
+    window_idx: int,
+    antispoof,
+    speaker,
+    transcriber,
+    classifier,
+    vault,
+    prev_scam: ScamSignals | None,
+):
+    # Always run: deepfake detection + speaker embedding + transcription (in parallel)
     spoof_p, emb, transcript = await asyncio.gather(
         antispoof.detect(w),
         speaker.embed_pcm16(w),
         transcriber.append_and_transcribe(w),
     )
+
     best, sim = vault.best_match_tensor(emb)
-    try:
-        scam = await classifier.classify(transcript)
-    except Exception:
-        scam = ScamSignals(reasoning_brief="Classifier unavailable")
+
+    # Only run LLM classifier every N windows (saves API calls + latency)
+    if window_idx % _CLASSIFY_EVERY == 0 or prev_scam is None:
+        try:
+            scam = await classifier.classify(transcript)
+        except Exception:
+            scam = prev_scam or ScamSignals(reasoning_brief="Classifier unavailable")
+    else:
+        scam = prev_scam or ScamSignals()
+
     voice = DetectorVoiceMatch(
         best_match_contact=best,
         similarity=sim,
         claimed_identity=scam.claimed_identity,
     )
     anti = DetectorAntiSpoof(spoof_prob=spoof_p, confidence=1.0)
-    return compute_trust_state(
+
+    state = compute_trust_state(
         antispoof=anti,
         scam=scam,
         voice_match=voice,
         transcript_partial=transcript,
     )
+    return state, scam
 
 
 @router.websocket("/ws/stream")
 async def stream_ws(websocket: WebSocket):
     await websocket.accept()
-    antispoof, speaker, transcriber, classifier, vault = _deps()
+    antispoof, speaker, transcriber, classifier, vault = get_deps()
+
+    # Reset transcriber for fresh session
+    transcriber.reset()
+
     buf = RollingWindowBuffer(
         sample_rate=settings.sample_rate,
         window_samples=settings.window_samples,
         stride_samples=settings.stride_samples,
     )
     await transcriber.load()
+
+    window_idx = 0
+    prev_scam: ScamSignals | None = None
 
     try:
         while True:
@@ -85,7 +91,11 @@ async def stream_ws(websocket: WebSocket):
             pcm_chunk = base64.b64decode(b64)
             windows = buf.push_pcm16(pcm_chunk)
             for w in windows:
-                state = await _process_window(w, antispoof, speaker, transcriber, classifier, vault)
+                state, prev_scam = await _process_window(
+                    w, window_idx, antispoof, speaker, transcriber,
+                    classifier, vault, prev_scam,
+                )
                 await websocket.send_text(state.model_dump_json())
+                window_idx += 1
     except WebSocketDisconnect:
-        return
+        logger.info("WebSocket disconnected after %d windows", window_idx)

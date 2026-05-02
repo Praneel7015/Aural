@@ -29,6 +29,15 @@ class ScamClassifier:
     def _classify_sync(self, transcript_window: str) -> ScamSignals:
         provider = settings.llm_provider.lower().strip()
         user_payload = transcript_window.strip() or "(empty transcript)"
+
+        # Try Gemini first if key is available (smarter, faster)
+        if settings.gemini_api_key and provider != "gemini":
+            try:
+                raw = self._gemini_complete(user_payload)
+                return self._parse_signals(raw)
+            except Exception:
+                pass  # Fall through to configured provider
+
         if provider == "gemini":
             raw = self._gemini_complete(user_payload)
         elif provider == "featherless":
@@ -76,28 +85,45 @@ class ScamClassifier:
         choice = resp.choices[0].message.content or "{}"
         return choice
 
+    _GEMINI_CASCADE = [
+        "gemini-2.5-flash",
+        "gemini-2.5-flash-lite",
+        "gemini-2.0-flash",
+        "gemini-2.0-flash-lite",
+    ]
+
     def _gemini_complete(self, user_payload: str) -> str:
         if not settings.gemini_api_key:
             raise RuntimeError("GEMINI_API_KEY is not set.")
-        import google.generativeai as genai
+        from google import genai
 
-        genai.configure(api_key=settings.gemini_api_key)
-        model = genai.GenerativeModel(
-            model_name=settings.gemini_model,
-            system_instruction=self._system,
-        )
-        cfg = {"temperature": 0.1}
-        try:
-            cfg["response_mime_type"] = "application/json"
-            resp = model.generate_content(user_payload, generation_config=cfg)
-        except TypeError:
-            cfg.pop("response_mime_type", None)
-            resp = model.generate_content(user_payload, generation_config=cfg)
-        try:
-            text = (resp.text or "").strip()
-        except ValueError:
-            text = "{}"
-        return text
+        client = genai.Client(api_key=settings.gemini_api_key)
+        contents = f"{self._system}\n\n---\n\nTranscript:\n{user_payload}"
+
+        for model in self._GEMINI_CASCADE:
+            try:
+                resp = client.models.generate_content(
+                    model=model,
+                    contents=contents,
+                    config={"temperature": 0.1, "response_mime_type": "application/json"},
+                )
+                return (resp.text or "").strip()
+            except Exception as exc:
+                if "429" in str(exc) or "RESOURCE_EXHAUSTED" in str(exc):
+                    continue  # Try next model
+                # Try without JSON mode
+                try:
+                    resp = client.models.generate_content(
+                        model=model,
+                        contents=contents,
+                        config={"temperature": 0.1},
+                    )
+                    return (resp.text or "").strip()
+                except Exception:
+                    if "429" in str(exc):
+                        continue
+                    raise
+        raise RuntimeError("All Gemini models exhausted")
 
     def _parse_signals(self, raw: str) -> ScamSignals:
         cleaned = _strip_json_fence(raw)

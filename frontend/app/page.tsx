@@ -1,203 +1,480 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Activity, Mic, Shield, UploadCloud } from "lucide-react";
+import { motion, useInView, useMotionValue, useTransform, animate } from "framer-motion";
+import { useRef, useEffect, useState } from "react";
+import { ArrowRight } from "lucide-react";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
-import { ChallengeQuestion } from "@/components/ChallengeQuestion";
-import { DetectorMeter } from "@/components/DetectorMeter";
-import { LiveTranscript } from "@/components/LiveTranscript";
-import { TrustGauge } from "@/components/TrustGauge";
-import { VerdictBanner } from "@/components/VerdictBanner";
-import { startMicStreaming } from "@/lib/audio-capture";
-import { useAuralStore } from "@/lib/store";
-import type { TrustState, TrustVerdict } from "@/lib/types";
-import { apiBase, openTrustSocket, sendPcmChunk } from "@/lib/ws";
-
-export default function HomePage() {
-  const trust = useAuralStore((s) => s.trust);
-  const listening = useAuralStore((s) => s.listening);
-  const setTrust = useAuralStore((s) => s.setTrust);
-  const setListening = useAuralStore((s) => s.setListening);
-  const resetSession = useAuralStore((s) => s.resetSession);
-
-  const wsRef = useRef<WebSocket | null>(null);
-  const micRef = useRef<{ stop: () => void } | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-
-  useEffect(() => () => {
-    micRef.current?.stop();
-    wsRef.current?.close();
-  }, []);
-
-  const wireTrust = useCallback(
-    (t: TrustState) => {
-      setTrust(t);
-    },
-    [setTrust],
+function FadeUp({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: "-60px" });
+  return (
+    <motion.div
+      ref={ref}
+      initial={{ opacity: 0, y: 24 }}
+      animate={inView ? { opacity: 1, y: 0 } : {}}
+      transition={{ duration: 0.5, delay, ease: [0.25, 0.46, 0.45, 0.94] }}
+      className={className}
+    >
+      {children}
+    </motion.div>
   );
+}
 
-  const stopAll = useCallback(() => {
-    micRef.current?.stop();
-    micRef.current = null;
-    wsRef.current?.close();
-    wsRef.current = null;
-    setListening(false);
-  }, [setListening]);
+function AnimatedScore({ target, duration = 2 }: { target: number; duration?: number }) {
+  const ref = useRef(null);
+  const inView = useInView(ref, { once: true, margin: "-100px" });
+  const count = useMotionValue(100);
+  const rounded = useTransform(count, (v) => Math.round(v));
+  const [display, setDisplay] = useState(100);
 
-  async function toggleMic() {
-    if (listening) {
-      stopAll();
-      return;
-    }
-    resetSession();
-    const ws = openTrustSocket({
-      onTrust: wireTrust,
-      onOpen: () => setListening(true),
-      onClose: () => setListening(false),
-      onError: () => setListening(false),
-    });
-    wsRef.current = ws;
-    await new Promise<void>((resolve, reject) => {
-      const t = setTimeout(() => reject(new Error("timeout")), 8000);
-      ws.addEventListener(
-        "open",
-        () => {
-          clearTimeout(t);
-          resolve();
-        },
-        { once: true },
-      );
-    }).catch(() => undefined);
+  useEffect(() => {
+    if (!inView) return;
+    const controls = animate(count, target, { duration, ease: "easeOut" });
+    const unsub = rounded.on("change", (v) => setDisplay(v));
+    return () => { controls.stop(); unsub(); };
+  }, [inView, count, rounded, target, duration]);
 
-    try {
-      micRef.current = await startMicStreaming((payload) => sendPcmChunk(wsRef.current, payload));
-    } catch {
-      stopAll();
-    }
+  function scoreColor(v: number) {
+    if (v >= 70) return "text-trust-safe";
+    if (v >= 40) return "text-trust-warn";
+    return "text-trust-danger";
   }
 
-  async function uploadFile(f: File) {
-    setUploading(true);
-    resetSession();
-    try {
-      const fd = new FormData();
-      fd.append("file", f);
-      const r = await fetch(`${apiBase()}/upload`, { method: "POST", body: fd });
-      const data = (await r.json()) as TrustState;
-      wireTrust(data);
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = "";
-    }
+  function borderColor(v: number) {
+    if (v >= 70) return "border-trust-safe";
+    if (v >= 40) return "border-trust-warn";
+    return "border-trust-danger";
   }
-
-  const verdict: TrustVerdict = trust?.verdict ?? "trusted";
-  const score = trust?.trust_score ?? 100;
-  const spoof = trust?.detectors?.antispoof?.spoof_prob ?? 0;
-  const scam = trust?.detectors?.scam_pattern;
-  const scamComposite =
-    trust && scam
-      ? Math.max(
-          scam.urgency,
-          scam.financial_request,
-          scam.impersonation,
-          scam.secrecy_pressure,
-          scam.authority_threat,
-        )
-      : 0;
-  const voicesIm = trust?.detectors?.voice_match?.similarity ?? -1;
-  const voiceBar = trust ? Math.max(0, Math.min(1, (voicesIm + 1) / 2)) : 0.5;
 
   return (
-    <div className="relative min-h-screen overflow-hidden pb-16 pt-8">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.14),transparent_50%),radial-gradient(ellipse_at_bottom,rgba(244,63,94,0.08),transparent_55%)]" />
+    <div ref={ref} className={`mx-auto flex h-48 w-48 items-center justify-center rounded-full border-4 transition-colors duration-300 ${borderColor(display)}`}>
+      <div className="text-center">
+        <p className={`font-[family-name:var(--font-mono)] text-5xl font-bold tabular-nums transition-colors duration-300 ${scoreColor(display)}`}>
+          {display}
+        </p>
+        <p className="mt-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          {display >= 70 ? "Safe" : display >= 40 ? "Caution" : "Scam"}
+        </p>
+      </div>
+    </div>
+  );
+}
 
-      <header className="relative mx-auto flex max-w-6xl flex-col gap-6 px-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex flex-row items-center gap-3">
-          <div className="flex size-11 items-center justify-center rounded-2xl bg-emerald-400/15 ring-1 ring-emerald-400/35">
-            <Shield className="size-6 text-emerald-200" aria-hidden />
-          </div>
-          <div className="flex flex-col">
-            <span className="font-[family-name:var(--font-display)] text-3xl font-semibold tracking-tight text-[var(--foreground)]">
-              Aural
-            </span>
-            <span className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">
-              Live call shield
-            </span>
+const steps = [
+  {
+    num: "01",
+    title: "Deepfake Detection",
+    desc: "AASIST3 neural network analyzes raw audio waveforms to detect synthetic speech, voice cloning, and text-to-speech artifacts in real time.",
+  },
+  {
+    num: "02",
+    title: "Scam Pattern Analysis",
+    desc: "LLM examines the live transcript for social engineering patterns -- urgency, financial requests, authority threats, and secrecy pressure.",
+  },
+  {
+    num: "03",
+    title: "Speaker Verification",
+    desc: "ECAPA-TDNN compares the caller's voiceprint against your Family Voice Vault. If they claim to be your son, the voice must match.",
+  },
+];
+
+const stats = [
+  { value: "<2s", label: "Detection latency" },
+  { value: "3", label: "Independent signals" },
+  { value: "0", label: "Models trained" },
+  { value: "100%", label: "On-device" },
+];
+
+const competitors = [
+  { name: "Hiya", scope: "Telecom networks", gap: "B2B only, no deepfake detection" },
+  { name: "Pindrop", scope: "Banks & call centers", gap: "Enterprise pricing, no consumer app" },
+  { name: "McAfee", scope: "Browser scam alerts", gap: "No real-time voice analysis" },
+  { name: "Verity", scope: "Your family's phone", gap: "All three signals, free, on-device" },
+];
+
+export default function LandingPage() {
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Nav */}
+      <nav className="sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-sm">
+        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-3.5">
+          <Link href="/" className="font-[family-name:var(--font-brand)] text-lg font-semibold tracking-tight text-foreground">
+            Verity
+          </Link>
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <Link
+              href="/dashboard"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-foreground px-4 py-2 text-sm font-medium text-background transition-opacity hover:opacity-90"
+            >
+              Open Dashboard
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
         </div>
-        <nav className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={() => void toggleMic()}
-            className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold text-[var(--foreground)] ring-1 ring-white/15 hover:bg-white/15"
-          >
-            <Mic className="size-4" aria-hidden />
-            {listening ? "Stop microphone" : "Start microphone"}
-          </button>
-          <button
-            type="button"
-            disabled={uploading}
-            onClick={() => fileRef.current?.click()}
-            className="inline-flex items-center gap-2 rounded-xl bg-white/10 px-4 py-2.5 text-sm font-semibold text-[var(--foreground)] ring-1 ring-white/15 hover:bg-white/15 disabled:opacity-50"
-          >
-            <UploadCloud className="size-4" aria-hidden />
-            Upload WAV
-          </button>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="audio/wav,audio/x-wav,audio/wave"
-            className="hidden"
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) void uploadFile(file);
-            }}
-          />
-          <Link
-            href="/vault"
-            className="inline-flex items-center gap-2 rounded-xl bg-emerald-500/15 px-4 py-2.5 text-sm font-semibold text-emerald-100 ring-1 ring-emerald-400/35 hover:bg-emerald-500/25"
-          >
-            <Activity className="size-4" aria-hidden />
-            Voice vault
-          </Link>
-        </nav>
-      </header>
+      </nav>
 
-      <main className="relative mx-auto grid max-w-6xl gap-8 px-4 pt-10 lg:grid-cols-[1fr_320px]">
-        <section className="flex flex-col gap-8">
-          <VerdictBanner verdict={verdict} />
-          {trust?.challenge_suggestion ? (
-            <ChallengeQuestion text={trust.challenge_suggestion} />
-          ) : null}
+      {/* Hero */}
+      <section className="border-b border-border">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 pb-20 pt-20 md:pt-28">
+          <div className="mx-auto max-w-2xl text-center">
+            <FadeUp>
+              <p className="mb-5 text-xs font-medium uppercase tracking-[0.2em] text-foreground/60">
+                Real-time scam-call protection
+              </p>
+            </FadeUp>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <DetectorMeter title="Synthetic voice" value01={spoof} />
-            <DetectorMeter title="Scam patterns" value01={scamComposite} />
-            <DetectorMeter title="Voice match" value01={voiceBar} invert />
+            <FadeUp delay={0.08}>
+              <h1 className="text-4xl font-bold leading-[1.15] tracking-tight text-foreground md:text-5xl lg:text-[3.5rem]">
+                Detect voice scams before they start
+              </h1>
+            </FadeUp>
+
+            <FadeUp delay={0.16}>
+              <p className="mx-auto mt-6 max-w-lg text-base leading-relaxed text-muted-foreground">
+                Verity fuses deepfake detection, social-engineering analysis, and speaker verification
+                into a single trust score -- in under two seconds, entirely on your device.
+              </p>
+            </FadeUp>
+
+            <FadeUp delay={0.24}>
+              <div className="mt-10 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+                <Link
+                  href="/dashboard"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-foreground px-6 py-3 text-sm font-semibold text-background transition-opacity hover:opacity-90"
+                >
+                  Launch Dashboard
+                  <ArrowRight className="h-4 w-4" />
+                </Link>
+                <a
+                  href="#how-it-works"
+                  className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-6 py-3 text-sm font-medium text-foreground transition-colors hover:bg-card"
+                >
+                  How it works
+                </a>
+              </div>
+            </FadeUp>
           </div>
+        </div>
+      </section>
 
-          <LiveTranscript text={trust?.transcript_partial ?? ""} phrases={scam?.trigger_phrases ?? []} />
+      {/* Stats */}
+      <section className="border-b border-border bg-card">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-10">
+          <div className="grid grid-cols-2 gap-6 md:grid-cols-4">
+            {stats.map((s, i) => (
+              <FadeUp key={s.label} delay={i * 0.08} className="text-center">
+                <p className="font-[family-name:var(--font-mono)] text-2xl font-bold text-foreground md:text-3xl">
+                  {s.value}
+                </p>
+                <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
+              </FadeUp>
+            ))}
+          </div>
+        </div>
+      </section>
 
-          {trust?.reasons?.length ? (
-            <ul className="flex flex-col gap-2 rounded-2xl border border-white/10 bg-black/25 p-4 text-sm text-[var(--muted)]">
-              {trust.reasons.map((r) => (
-                <li key={r}>• {r}</li>
-              ))}
-            </ul>
-          ) : null}
-        </section>
+      {/* The Problem */}
+      <section className="border-b border-border">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-20">
+          <div className="grid items-center gap-12 md:grid-cols-2">
+            <FadeUp>
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-trust-danger/80">The Problem</p>
+              <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+                AI voice clones are undetectable to the human ear
+              </h2>
+              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+                A 30-second voice sample from a WhatsApp note or social media video is
+                enough to clone anyone&apos;s voice. Scammers use these clones to impersonate
+                family members, demanding money while the victim hears their loved one&apos;s
+                voice begging for help.
+              </p>
+              <div className="mt-6 flex flex-col gap-2.5">
+                {[
+                  { stat: "$1B+", desc: "stolen from families via voice scams in 2025" },
+                  { stat: "30s", desc: "of audio needed to clone any voice" },
+                  { stat: "77%", desc: "of victims could not tell the clone from the real voice" },
+                ].map((item) => (
+                  <div key={item.stat} className="flex items-center gap-3">
+                    <span className="w-14 font-[family-name:var(--font-mono)] text-sm font-bold text-trust-danger">{item.stat}</span>
+                    <span className="text-sm text-muted-foreground">{item.desc}</span>
+                  </div>
+                ))}
+              </div>
+            </FadeUp>
+            <FadeUp delay={0.15}>
+              <div className="rounded-lg border border-trust-danger/30 bg-trust-danger/10 p-6">
+                <p className="mb-3 font-[family-name:var(--font-mono)] text-xs text-trust-danger">Typical scam call transcript</p>
+                <p className="text-sm leading-relaxed italic text-foreground-secondary">
+                  &quot;Mom, please, I&apos;ve been arrested and I need ten thousand rupees
+                  right now. Don&apos;t tell dad. The police won&apos;t let me go until I pay
+                  this. Please hurry.&quot;
+                </p>
+                <div className="mt-4 flex items-center gap-2 border-t border-trust-danger/30 pt-4">
+                  <span className="rounded bg-trust-danger/15 px-2 py-0.5 text-[10px] font-semibold uppercase text-trust-danger">
+                    AI Clone
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Generated from a 30-second voice sample
+                  </span>
+                </div>
+              </div>
+            </FadeUp>
+          </div>
+        </div>
+      </section>
 
-        <aside className="flex flex-col gap-6 lg:sticky lg:top-8 lg:self-start">
-          <TrustGauge score={score} />
-          <p className="text-center text-xs leading-relaxed text-[var(--muted)]">
-            Fuses anti-spoofing, transcript cues, and vault voice-print checks. Runs locally — wire only
-            used for your chosen LLM provider (OpenAI, Gemini, or Featherless).
-          </p>
-        </aside>
-      </main>
+      {/* How it works */}
+      <section id="how-it-works" className="scroll-mt-16 border-b border-border">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-20">
+          <FadeUp className="mb-14">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-foreground/60">Architecture</p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+              Three signals, one verdict
+            </h2>
+            <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground">
+              Each layer runs independently on every audio window. The Trust Engine fuses their
+              outputs into a single 0-100 score in real time.
+            </p>
+          </FadeUp>
+
+          <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border md:grid-cols-3">
+            {steps.map((step, i) => (
+              <FadeUp key={step.title} delay={i * 0.1}>
+                <div className="flex h-full flex-col bg-card p-6">
+                  <span className="mb-3 font-[family-name:var(--font-mono)] text-xs text-muted-foreground">
+                    {step.num}
+                  </span>
+                  <h3 className="text-sm font-semibold text-foreground">{step.title}</h3>
+                  <p className="mt-2 flex-1 text-sm leading-relaxed text-muted-foreground">
+                    {step.desc}
+                  </p>
+                </div>
+              </FadeUp>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Trust Score demo */}
+      <section className="border-b border-border bg-card">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-20">
+          <div className="grid items-center gap-12 md:grid-cols-2">
+            <FadeUp>
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-foreground/60">Live Output</p>
+              <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+                One score. Full transparency.
+              </h2>
+              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+                The Trust Score starts at 100. Each red flag subtracts points: synthetic voice
+                detected, financial request identified, voiceprint mismatch confirmed. You see
+                exactly why a call is flagged.
+              </p>
+              <div className="mt-6 flex flex-col gap-2">
+                {[
+                  { range: "70-100", label: "Trusted", cls: "text-trust-safe" },
+                  { range: "40-69", label: "Suspicious", cls: "text-trust-warn" },
+                  { range: "0-39", label: "Scam detected", cls: "text-trust-danger" },
+                ].map((item) => (
+                  <div key={item.range} className="flex items-center gap-3 text-sm">
+                    <span className="w-14 font-[family-name:var(--font-mono)] text-xs text-muted-foreground">{item.range}</span>
+                    <span className={`font-medium ${item.cls}`}>{item.label}</span>
+                  </div>
+                ))}
+              </div>
+            </FadeUp>
+
+            <FadeUp delay={0.15}>
+              <div className="rounded-lg border border-border bg-background p-8">
+                <AnimatedScore target={6} duration={2.5} />
+                <div className="mt-8 flex flex-col gap-2.5 text-sm">
+                  <div className="flex items-center justify-between border-b border-border pb-2.5">
+                    <span className="text-muted-foreground">Synthetic voice</span>
+                    <span className="font-[family-name:var(--font-mono)] font-medium text-trust-danger">94%</span>
+                  </div>
+                  <div className="flex items-center justify-between border-b border-border pb-2.5">
+                    <span className="text-muted-foreground">Scam patterns</span>
+                    <span className="font-[family-name:var(--font-mono)] font-medium text-trust-danger">91%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Voice match</span>
+                    <span className="font-[family-name:var(--font-mono)] font-medium text-trust-danger">23%</span>
+                  </div>
+                </div>
+              </div>
+            </FadeUp>
+          </div>
+        </div>
+      </section>
+
+      {/* Family Voice Vault */}
+      <section className="border-b border-border">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-20">
+          <div className="grid items-center gap-12 md:grid-cols-2">
+            <FadeUp delay={0.1} className="order-2 md:order-1">
+              <div className="rounded-lg border border-border bg-card p-6">
+                <p className="mb-4 text-xs font-medium uppercase tracking-wider text-muted-foreground">Voice Vault</p>
+                <div className="flex flex-col gap-2">
+                  {[
+                    { name: "Aarav", rel: "Son", match: "98%" },
+                    { name: "Priya", rel: "Daughter", match: "96%" },
+                    { name: "Mom", rel: "Mother", match: "94%" },
+                  ].map((c) => (
+                    <div key={c.name} className="flex items-center justify-between rounded-md border border-border bg-background px-4 py-2.5">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">{c.name}</p>
+                        <p className="text-xs text-muted-foreground">{c.rel}</p>
+                      </div>
+                      <span className="font-[family-name:var(--font-mono)] text-sm font-medium text-trust-safe">{c.match}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </FadeUp>
+
+            <FadeUp className="order-1 md:order-2">
+              <p className="text-xs font-medium uppercase tracking-[0.2em] text-foreground/60">Protection</p>
+              <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+                Family Voice Vault
+              </h2>
+              <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+                Enroll a 30-second voice sample of each family member. When someone calls claiming
+                to be your son, Verity checks the voiceprint against the vault -- exposing clones
+                that sound identical to the human ear.
+              </p>
+              <Link
+                href="/vault"
+                className="mt-6 inline-flex cursor-pointer items-center gap-2 text-sm font-medium text-foreground transition-opacity hover:opacity-70"
+              >
+                Open Voice Vault
+                <ArrowRight className="h-3.5 w-3.5" />
+              </Link>
+            </FadeUp>
+          </div>
+        </div>
+      </section>
+
+      {/* Competitive positioning */}
+      <section className="border-b border-border">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-20">
+          <FadeUp className="mb-14">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-foreground/60">Landscape</p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+              Why not the existing players?
+            </h2>
+            <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground">
+              Scam-call protection exists -- for telecom networks, banks, and browsers.
+              Nobody protects the consumer from AI voice clones. Until now.
+            </p>
+          </FadeUp>
+          <div className="overflow-x-auto rounded-lg border border-border">
+            <table className="w-full min-w-[500px] text-sm">
+              <thead>
+                <tr className="border-b border-border bg-card text-left">
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Solution</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Protects</th>
+                  <th className="px-4 py-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Gap</th>
+                </tr>
+              </thead>
+              <tbody>
+                {competitors.map((c, i) => (
+                  <tr
+                    key={c.name}
+                    className={`border-b border-border last:border-b-0 ${
+                      c.name === "Verity" ? "bg-trust-safe/5" : "bg-background"
+                    }`}
+                  >
+                    <td className={`px-4 py-3 font-medium ${c.name === "Verity" ? "text-trust-safe" : "text-foreground"}`}>
+                      {c.name}
+                    </td>
+                    <td className="px-4 py-3 text-muted-foreground">{c.scope}</td>
+                    <td className={`px-4 py-3 ${c.name === "Verity" ? "font-medium text-trust-safe" : "text-muted-foreground"}`}>
+                      {c.gap}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      {/* Tech stack */}
+      <section className="border-b border-border bg-card">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-20">
+          <FadeUp className="mb-14">
+            <p className="text-xs font-medium uppercase tracking-[0.2em] text-foreground/60">Under the Hood</p>
+            <h2 className="mt-3 text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+              Pretrained. Zero training. Ship-ready.
+            </h2>
+            <p className="mt-3 max-w-lg text-sm leading-relaxed text-muted-foreground">
+              Every ML component is a pretrained downloadable artifact. We built the fusion, not the models.
+            </p>
+          </FadeUp>
+          <div className="grid gap-px overflow-hidden rounded-lg border border-border bg-border sm:grid-cols-2 md:grid-cols-4">
+            {[
+              { name: "AASIST3", role: "Deepfake Detection", detail: "Audio anti-spoofing neural network" },
+              { name: "ECAPA-TDNN", role: "Speaker Verification", detail: "192-dim voiceprint embeddings" },
+              { name: "Whisper", role: "Transcription", detail: "distil-large-v3, sub-second latency" },
+              { name: "LLM", role: "Scam Analysis", detail: "GPT-4o-mini / Gemini Flash" },
+            ].map((m, i) => (
+              <FadeUp key={m.name} delay={i * 0.08}>
+                <div className="flex h-full flex-col bg-card p-5">
+                  <p className="font-[family-name:var(--font-mono)] text-xs text-muted-foreground">{m.role}</p>
+                  <p className="mt-2 text-sm font-semibold text-foreground">{m.name}</p>
+                  <p className="mt-1 flex-1 text-xs text-muted-foreground">{m.detail}</p>
+                </div>
+              </FadeUp>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* CTA */}
+      <section className="border-b border-border">
+        <div className="mx-auto max-w-5xl px-4 sm:px-6 py-20 text-center">
+          <FadeUp>
+            <h2 className="text-2xl font-bold tracking-tight text-foreground md:text-3xl">
+              Protect the phone in your grandmother&apos;s hand
+            </h2>
+            <p className="mx-auto mt-4 max-w-md text-sm leading-relaxed text-muted-foreground">
+              AI voice scams stole over a billion dollars from families globally in 2025.
+              The voice is real. The crime is invisible. Verity makes it visible.
+            </p>
+            <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+              <Link
+                href="/dashboard"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-md bg-foreground px-8 py-3 text-sm font-semibold text-background transition-opacity hover:opacity-90"
+              >
+                Try Verity Now
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+              <Link
+                href="/dashboard"
+                className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-border px-8 py-3 text-sm font-medium text-foreground transition-colors hover:bg-card"
+              >
+                Run Demo Scenarios
+              </Link>
+            </div>
+          </FadeUp>
+        </div>
+      </section>
+
+      {/* Footer */}
+      <footer className="border-t border-border">
+        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-4 px-6 py-6 text-xs text-muted-foreground sm:flex-row">
+          <span>Verity -- Built for Octoverse Student Hackathon</span>
+          <div className="flex items-center gap-4">
+            <Link href="/dashboard" className="transition-colors hover:text-foreground">Dashboard</Link>
+            <Link href="/vault" className="transition-colors hover:text-foreground">Voice Vault</Link>
+            <Link href="/threats" className="transition-colors hover:text-foreground">Threats</Link>
+            <Link href="/learn" className="transition-colors hover:text-foreground">Learn</Link>
+            <Link href="/settings" className="transition-colors hover:text-foreground">Settings</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }

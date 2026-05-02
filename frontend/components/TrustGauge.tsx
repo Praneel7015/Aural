@@ -9,6 +9,12 @@ function gaugeColor(score: number): string {
   return "var(--trust-danger)";
 }
 
+function label(score: number): string {
+  if (score >= 70) return "Safe";
+  if (score >= 40) return "Caution";
+  return "Threat";
+}
+
 export function TrustGauge({ score }: { score: number }) {
   const v = Math.max(0, Math.min(100, score));
   const fill = gaugeColor(v);
@@ -16,29 +22,38 @@ export function TrustGauge({ score }: { score: number }) {
 
   return (
     <motion.div
-      className="relative mx-auto flex size-[min(92vw,380px)] flex-col items-center justify-center"
-      initial={{ opacity: 0, scale: 0.94 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: "spring", stiffness: 120, damping: 18 }}
+      className="relative mx-auto flex aspect-square w-full max-w-[240px] flex-col items-center justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.3 }}
     >
       <ResponsiveContainer width="100%" height="100%">
         <RadialBarChart
-          innerRadius="76%"
+          innerRadius="78%"
           outerRadius="100%"
-          barSize={22}
+          barSize={14}
           data={data}
           startAngle={220}
           endAngle={-40}
         >
           <PolarAngleAxis type="number" domain={[0, 100]} tick={false} />
-          <RadialBar background={{ fill: "rgba(255,255,255,0.06)" }} dataKey="value" cornerRadius={12} />
+          <RadialBar
+            background={{ fill: "var(--border)" }}
+            dataKey="value"
+            cornerRadius={8}
+          />
         </RadialBarChart>
       </ResponsiveContainer>
-      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-1 pt-6">
-        <span className="font-[family-name:var(--font-display)] text-6xl font-semibold tabular-nums tracking-tight text-[var(--foreground)]">
+      <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center pt-4">
+        <span
+          className="font-[family-name:var(--font-mono)] text-5xl font-bold tabular-nums tracking-tight"
+          style={{ color: fill }}
+        >
           {v}
         </span>
-        <span className="text-xs uppercase tracking-[0.35em] text-[var(--muted)]">Trust</span>
+        <span className="mt-1 text-xs font-medium uppercase tracking-widest text-muted-foreground">
+          {label(v)}
+        </span>
       </div>
     </motion.div>
   );
