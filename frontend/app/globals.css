@@ -90,6 +90,12 @@ body {
   background: var(--background);
 }
 
+html,
+body {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
 ::selection {
   background: rgba(52, 211, 153, 0.35);
 }

@@ -6,6 +6,9 @@ backend/.venv/
 backend/__pycache__/
 backend/**/__pycache__/
 backend/models/
+backend/weights/
+backend/.tmp/
+backend/.cache/
 backend/vault.db
 backend/vault/embeddings/
 backend/vendor/

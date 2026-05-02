@@ -6,7 +6,7 @@ import { VaultEnrollment } from "@/components/VaultEnrollment";
 
 export default function VaultPage() {
   return (
-    <div className="relative min-h-screen bg-white text-black dark:bg-black dark:text-white transition-colors duration-300 font-sans pb-16 pt-24">
+    <div className="relative min-h-screen bg-[var(--background)] text-[var(--foreground)] transition-colors duration-300 font-sans pb-16 pt-24">
       {/* Header */}
       <header className="fixed top-0 w-full z-50 border-b border-black/10 dark:border-white/10 bg-white/80 dark:bg-black/80 backdrop-blur-md">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">

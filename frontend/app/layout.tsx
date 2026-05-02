@@ -19,7 +19,7 @@ const body = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "Aural — scam-call shield",
+  title: "Aural - scam-call shield",
   description:
     "Real-time trust scoring from synthetic-voice detection, scam-pattern LLM analysis, and vault speaker verification.",
 };

@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Activity, Mic, UploadCloud, AudioWaveform, ChevronLeft } from "lucide-react";
+import { Activity, Mic, UploadCloud, AudioWaveform, ChevronLeft, Settings } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 import { ThemeToggle } from "@/components/theme-toggle";
 
@@ -11,14 +12,15 @@ import { DetectorMeter } from "@/components/DetectorMeter";
 import { LiveTranscript } from "@/components/LiveTranscript";
 import { TrustGauge } from "@/components/TrustGauge";
 import { VerdictBanner } from "@/components/VerdictBanner";
-import { startMicStreaming } from "@/lib/audio-capture";
+import { convertAnyAudioToWavBlob, startMicStreaming } from "@/lib/audio-capture";
 import { useAuralStore } from "@/lib/store";
 import type { TrustState, TrustVerdict } from "@/lib/types";
-import { apiBase, openTrustSocket, sendPcmChunk } from "@/lib/ws";
+import { openTrustSocket, sendPcmChunk, uploadEndpoint } from "@/lib/ws";
 
 export default function HomePage() {
   const trust = useAuralStore((s) => s.trust);
   const listening = useAuralStore((s) => s.listening);
+  const settings = useAuralStore((s) => s.settings);
   const setTrust = useAuralStore((s) => s.setTrust);
   const setListening = useAuralStore((s) => s.setListening);
   const resetSession = useAuralStore((s) => s.resetSession);
@@ -27,6 +29,7 @@ export default function HomePage() {
   const micRef = useRef<{ stop: () => void } | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   useEffect(() => () => {
     micRef.current?.stop();
@@ -59,7 +62,7 @@ export default function HomePage() {
       onOpen: () => setListening(true),
       onClose: () => setListening(false),
       onError: () => setListening(false),
-    });
+    }, settings);
     wsRef.current = ws;
     await new Promise<void>((resolve, reject) => {
       const t = setTimeout(() => reject(new Error("timeout")), 8000);
@@ -82,13 +85,67 @@ export default function HomePage() {
 
   async function uploadFile(f: File) {
     setUploading(true);
+    setUploadError(null);
     resetSession();
     try {
+      // Convert any audio file to 16kHz mono WAV
+      const wavBlob = await convertAnyAudioToWavBlob(f);
+
       const fd = new FormData();
-      fd.append("file", f);
-      const r = await fetch(`${apiBase()}/upload`, { method: "POST", body: fd });
-      const data = (await r.json()) as TrustState;
-      wireTrust(data);
+      fd.append("file", wavBlob, "upload.wav");
+      if (settings.provider) fd.append("provider", settings.provider);
+      if (settings.openaiKey) fd.append("openai_key", settings.openaiKey);
+      if (settings.geminiKey) fd.append("gemini_key", settings.geminiKey);
+
+      const r = await fetch(uploadEndpoint(), { method: "POST", body: fd });
+      const raw = await r.text();
+      let parsed: unknown;
+      try {
+        parsed = raw ? JSON.parse(raw) : null;
+      } catch {
+        setUploadError(
+          r.ok
+            ? "Analysis returned non-JSON (unexpected)."
+            : `Upload failed (${r.status}). Response was not JSON.`,
+        );
+        return;
+      }
+
+      if (!r.ok) {
+        const err = parsed as {
+          detail?: string | string[] | { msg?: string }[];
+          error?: string;
+          hint?: string;
+        };
+        let detail = "";
+        if (typeof err.detail === "string") detail = err.detail;
+        else if (Array.isArray(err.detail)) {
+          detail = err.detail
+            .map((d) => (typeof d === "string" ? d : (d as { msg?: string }).msg ?? JSON.stringify(d)))
+            .join("; ");
+        }
+        const hint = err.hint ? ` ${err.hint}` : "";
+        setUploadError(
+          [err.error, detail || raw.slice(0, 200), hint].filter(Boolean).join(" — ") ||
+            `Upload failed with status ${r.status}.`,
+        );
+        return;
+      }
+
+      if (!parsed || typeof parsed !== "object") {
+        setUploadError("Analysis returned an empty or invalid payload.");
+        return;
+      }
+
+      wireTrust(parsed as TrustState);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setUploadError(
+        msg.includes("NetworkError") || msg.toLowerCase().includes("failed to fetch")
+          ? "Network error: check that the Next.js app can reach the backend (see terminal where you run the API). Unsupported audio formats also fail during decode."
+          : msg,
+      );
+      console.error("Upload/conversion failed", e);
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -113,7 +170,7 @@ export default function HomePage() {
   const voiceBar = trust ? Math.max(0, Math.min(1, (voicesIm + 1) / 2)) : 0.5;
 
   return (
-    <div className="relative min-h-screen bg-white text-black dark:bg-black dark:text-white transition-colors duration-300 font-sans pb-16 pt-24">
+    <div className="relative min-h-screen bg-[var(--background)] text-[var(--foreground)] transition-colors duration-300 font-sans pb-16 pt-24">
       {/* Header */}
       <header className="fixed top-0 w-full z-50 border-b border-black/10 dark:border-white/10 bg-white/80 dark:bg-black/80 backdrop-blur-md">
         <div className="container mx-auto px-6 h-16 flex items-center justify-between">
@@ -146,7 +203,12 @@ export default function HomePage() {
               <button
                 type="button"
                 onClick={() => void toggleMic()}
-                className="inline-flex items-center gap-2 rounded-md bg-black dark:bg-white px-4 py-2 text-sm font-bold text-white dark:text-black hover:scale-105 transition-transform"
+                className={cn(
+                  "inline-flex items-center gap-2 rounded-md px-4 py-2 text-sm font-bold transition-all",
+                  listening 
+                    ? "bg-rose-500 text-white hover:bg-rose-600 animate-pulse shadow-[0_0_15px_rgba(244,63,94,0.5)]" 
+                    : "bg-black dark:bg-white text-white dark:text-black hover:scale-105"
+                )}
               >
                 <Mic className="size-4" aria-hidden />
                 {listening ? "Stop microphone" : "Start microphone"}
@@ -157,19 +219,38 @@ export default function HomePage() {
                 onClick={() => fileRef.current?.click()}
                 className="inline-flex items-center gap-2 rounded-md border border-black/20 dark:border-white/20 bg-transparent px-4 py-2 text-sm font-bold text-black dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors disabled:opacity-50"
               >
-                <UploadCloud className="size-4" aria-hidden />
-                Upload WAV
+                {uploading ? (
+                  <div className="size-4 animate-spin rounded-full border-2 border-black/20 border-t-black dark:border-white/20 dark:border-t-white" />
+                ) : (
+                  <UploadCloud className="size-4" aria-hidden />
+                )}
+                {uploading ? "Analyzing..." : "Upload Audio"}
               </button>
               <input
                 ref={fileRef}
                 type="file"
-                accept="audio/wav,audio/x-wav,audio/wave"
+                accept="audio/*"
                 className="hidden"
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) void uploadFile(file);
                 }}
               />
+              {uploadError ? (
+                <p
+                  className="w-full basis-full text-sm text-rose-600 dark:text-rose-400 font-body"
+                  role="alert"
+                >
+                  {uploadError}
+                </p>
+              ) : null}
+              <Link
+                href="/settings"
+                className="inline-flex items-center gap-2 rounded-md border border-black/20 dark:border-white/20 bg-transparent px-4 py-2 text-sm font-bold text-black dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+              >
+                <Settings className="size-4" aria-hidden />
+                Settings
+              </Link>
               <Link
                 href="/vault"
                 className="inline-flex items-center gap-2 rounded-md border border-black/20 dark:border-white/20 bg-transparent px-4 py-2 text-sm font-bold text-black dark:text-white hover:bg-black/5 dark:hover:bg-white/5 transition-colors"

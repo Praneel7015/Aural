@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { FileText } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -60,17 +61,36 @@ export function LiveTranscript({
   }, [text, hover]);
 
   return (
-    <div
-      ref={ref}
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      className="max-h-[220px] overflow-y-auto rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 p-4 font-body text-sm leading-relaxed text-black dark:text-white shadow-inner"
-    >
-      {text ? (
-        <p className="whitespace-pre-wrap">{body}</p>
-      ) : (
-        <p className="text-black/50 dark:text-white/50 italic">Transcript appears as the call is processed…</p>
-      )}
+    <div className="relative flex flex-col gap-3 rounded-lg border border-black/10 dark:border-white/10 bg-black/5 dark:bg-white/5 p-6 shadow-sm overflow-hidden group">
+      {/* Header */}
+      <div className="relative flex items-center gap-2 mb-2">
+        <FileText className="w-5 h-5 text-black dark:text-white" />
+        <span className="font-display font-bold text-sm tracking-widest text-black dark:text-white uppercase">
+          Live Transcript
+        </span>
+      </div>
+      
+      <div
+        ref={ref}
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        className="relative max-h-[240px] overflow-y-auto font-body text-base md:text-lg leading-relaxed text-black/90 dark:text-white/90 pr-4 scrollbar-thin scrollbar-thumb-black/10 dark:scrollbar-thumb-white/10"
+      >
+        {text ? (
+          <p className="whitespace-pre-wrap">{body}</p>
+        ) : (
+          <div className="flex items-center gap-3 text-black/40 dark:text-white/40 italic h-12">
+            <div className="flex gap-1.5 items-center">
+              <span className="w-2 h-2 rounded-full bg-black/40 dark:bg-white/40 animate-bounce" style={{ animationDelay: "0ms" }} />
+              <span className="w-2 h-2 rounded-full bg-black/40 dark:bg-white/40 animate-bounce" style={{ animationDelay: "150ms" }} />
+              <span className="w-2 h-2 rounded-full bg-black/40 dark:bg-white/40 animate-bounce" style={{ animationDelay: "300ms" }} />
+            </div>
+            <span className="text-black/40 dark:text-white/40">
+              Listening for speech...
+            </span>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

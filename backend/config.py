@@ -16,11 +16,31 @@ class Settings(BaseSettings):
     host: str = "0.0.0.0"
     port: int = 8000
 
-    cors_origins: str = "http://localhost:3000"
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
 
-    whisper_model: str = "distil-large-v3"
+    whisper_model: str = Field(
+        default="distil-large-v3",
+        description="Smaller/faster: tiny.en, base.en, small.en, distil-small.en (set WHISPER_MODEL).",
+    )
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
+
+    eager_load_models: bool = Field(
+        default=True,
+        description="Pre-load Whisper, anti-spoof, speaker at startup (faster first request).",
+    )
+    upload_embedding_max_seconds: int = Field(
+        default=30,
+        ge=5,
+        le=120,
+        description="Max audio duration for speaker embedding on file upload (caps ECAPA cost).",
+    )
+    upload_antispoof_max_windows: int = Field(
+        default=12,
+        ge=1,
+        le=64,
+        description="Max rolling windows scored for anti-spoof on upload (long files = many windows otherwise).",
+    )
 
     antispoof_hub_id: str = "lab260/AASIST3"
     antispoof_device: str = "cpu"

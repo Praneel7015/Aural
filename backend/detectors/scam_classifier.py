@@ -22,19 +22,31 @@ class ScamClassifier:
         prompt_path = Path(__file__).resolve().parents[1] / "prompts" / "scam_classifier.txt"
         self._system = prompt_path.read_text(encoding="utf-8")
 
-    async def classify(self, transcript_window: str) -> ScamSignals:
+    async def classify(
+        self, transcript_window: str,
+        openai_key: str | None = None,
+        gemini_key: str | None = None,
+        provider: str | None = None,
+    ) -> ScamSignals:
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, lambda: self._classify_sync(transcript_window))
+        return await loop.run_in_executor(None, lambda: self._classify_sync(
+            transcript_window, openai_key, gemini_key, provider
+        ))
 
-    def _classify_sync(self, transcript_window: str) -> ScamSignals:
-        provider = settings.llm_provider.lower().strip()
+    def _classify_sync(
+        self, transcript_window: str,
+        openai_key: str | None = None,
+        gemini_key: str | None = None,
+        provider: str | None = None,
+    ) -> ScamSignals:
+        prov = (provider or settings.llm_provider).lower().strip()
         user_payload = transcript_window.strip() or "(empty transcript)"
-        if provider == "gemini":
-            raw = self._gemini_complete(user_payload)
-        elif provider == "featherless":
+        if prov == "gemini":
+            raw = self._gemini_complete(user_payload, gemini_key)
+        elif prov == "featherless":
             fb = (settings.featherless_base_url or "").strip() or "https://api.featherless.ai/v1"
             raw = self._openai_compatible_complete(
-                api_key=settings.featherless_api_key,
+                api_key=openai_key or settings.featherless_api_key,
                 base_url=fb,
                 model=settings.featherless_model,
                 user_payload=user_payload,
@@ -43,7 +55,7 @@ class ScamClassifier:
         else:
             bu = (settings.openai_base_url or "").strip() or "https://api.openai.com/v1"
             raw = self._openai_compatible_complete(
-                api_key=settings.openai_api_key,
+                api_key=openai_key or settings.openai_api_key,
                 base_url=bu,
                 model=settings.openai_model,
                 user_payload=user_payload,
@@ -76,12 +88,13 @@ class ScamClassifier:
         choice = resp.choices[0].message.content or "{}"
         return choice
 
-    def _gemini_complete(self, user_payload: str) -> str:
-        if not settings.gemini_api_key:
+    def _gemini_complete(self, user_payload: str, gemini_key: str | None = None) -> str:
+        key = gemini_key or settings.gemini_api_key
+        if not key:
             raise RuntimeError("GEMINI_API_KEY is not set.")
         import google.generativeai as genai
 
-        genai.configure(api_key=settings.gemini_api_key)
+        genai.configure(api_key=key)
         model = genai.GenerativeModel(
             model_name=settings.gemini_model,
             system_instruction=self._system,

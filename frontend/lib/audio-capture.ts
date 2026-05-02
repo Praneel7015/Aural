@@ -109,6 +109,17 @@ export function float32ToWavBlob(samples: Float32Array, sampleRate: number): Blo
   return new Blob([out], { type: "audio/wav" });
 }
 
+export async function convertAnyAudioToWavBlob(file: File): Promise<Blob> {
+  const arrayBuffer = await file.arrayBuffer();
+  // Use OfflineAudioContext to decode without needing user gesture playback
+  const ctx = new window.AudioContext();
+  const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+  const channelData = audioBuffer.getChannelData(0);
+  const downsampled = downsampleBuffer(channelData, audioBuffer.sampleRate, 16000);
+  await ctx.close();
+  return float32ToWavBlob(downsampled, 16000);
+}
+
 export async function recordSecondsAsWav(
   seconds: number,
   onTick?: (left: number) => void,

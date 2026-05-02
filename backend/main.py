@@ -1,4 +1,5 @@
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -11,7 +12,23 @@ from config import settings
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("aural")
 
-app = FastAPI(title="Aural", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    if settings.eager_load_models:
+        try:
+            from pipeline import warmup_pipeline
+
+            await warmup_pipeline()
+        except Exception as e:
+            logger.warning(
+                "Pipeline warmup failed (models load on first request instead): %s",
+                e,
+            )
+    yield
+
+
+app = FastAPI(title="Aural", version="0.1.0", lifespan=lifespan)
 
 origins = [o.strip() for o in settings.cors_origins.split(",") if o.strip()]
 app.add_middleware(

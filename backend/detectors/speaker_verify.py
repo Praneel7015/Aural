@@ -19,13 +19,17 @@ class SpeakerVerifier:
             if self._model is not None:
                 return
             from speechbrain.inference.speaker import SpeakerRecognition
+            from speechbrain.utils.fetching import LocalStrategy
 
             loop = asyncio.get_event_loop()
 
             def _load():
                 return SpeakerRecognition.from_hparams(
                     source="speechbrain/spkrec-ecapa-voxceleb",
-                    savedir=str(settings.ecapa_savedir),
+                    # Keep savedir unset on Windows so SpeechBrain uses HF cache
+                    # directly and does not attempt privileged symlinks.
+                    savedir=None,
+                    local_strategy=LocalStrategy.COPY,
                     run_opts={"device": "cpu"},
                 )
 
@@ -33,7 +37,10 @@ class SpeakerVerifier:
 
     def _embed_path_sync(self, wav_path: str) -> torch.Tensor:
         assert self._model is not None
-        signal = self._model.load_audio(wav_path)
+        # SpeechBrain's split_path() only splits on "/". Windows "\" paths are treated as a bare
+        # filename under "./", yielding cwd + absolute path (broken). Use POSIX paths for load_audio.
+        posix_path = Path(wav_path).resolve().as_posix()
+        signal = self._model.load_audio(posix_path)
         embedding = self._model.encode_batch(signal.unsqueeze(0))
         return embedding.squeeze().detach().cpu()
 

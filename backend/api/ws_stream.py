@@ -9,37 +9,22 @@ from config import settings
 from core.audio_buffer import RollingWindowBuffer
 from core.schemas import DetectorAntiSpoof, DetectorVoiceMatch, ScamSignals
 from core.trust_engine import compute_trust_state
-from detectors.antispoof import AntiSpoofDetector
-from detectors.scam_classifier import ScamClassifier
-from detectors.speaker_verify import SpeakerVerifier
-from detectors.transcriber import StreamingTranscriber
-from vault.store import VoiceVault
+from pipeline import get_pipeline_deps
 
 router = APIRouter(tags=["ws"])
 
-_antispoof: AntiSpoofDetector | None = None
-_speaker: SpeakerVerifier | None = None
-_transcriber: StreamingTranscriber | None = None
-_classifier: ScamClassifier | None = None
-_vault: VoiceVault | None = None
 
-
-def _deps():
-    global _antispoof, _speaker, _transcriber, _classifier, _vault
-    if _vault is None:
-        _vault = VoiceVault(settings.vault_db_path, settings.vault_embeddings_dir)
-    if _antispoof is None:
-        _antispoof = AntiSpoofDetector()
-    if _speaker is None:
-        _speaker = SpeakerVerifier()
-    if _transcriber is None:
-        _transcriber = StreamingTranscriber()
-    if _classifier is None:
-        _classifier = ScamClassifier()
-    return _antispoof, _speaker, _transcriber, _classifier, _vault
-
-
-async def _process_window(w: np.ndarray, antispoof, speaker, transcriber, classifier, vault):
+async def _process_window(
+    w: np.ndarray,
+    antispoof,
+    speaker,
+    transcriber,
+    classifier,
+    vault,
+    openai_key: str | None = None,
+    gemini_key: str | None = None,
+    provider: str | None = None,
+):
     spoof_p, emb, transcript = await asyncio.gather(
         antispoof.detect(w),
         speaker.embed_pcm16(w),
@@ -47,9 +32,11 @@ async def _process_window(w: np.ndarray, antispoof, speaker, transcriber, classi
     )
     best, sim = vault.best_match_tensor(emb)
     try:
-        scam = await classifier.classify(transcript)
-    except Exception:
-        scam = ScamSignals(reasoning_brief="Classifier unavailable")
+        scam = await classifier.classify(
+            transcript, openai_key=openai_key, gemini_key=gemini_key, provider=provider
+        )
+    except Exception as e:
+        scam = ScamSignals(reasoning_brief=f"Classifier unavailable: {str(e)}")
     voice = DetectorVoiceMatch(
         best_match_contact=best,
         similarity=sim,
@@ -65,15 +52,21 @@ async def _process_window(w: np.ndarray, antispoof, speaker, transcriber, classi
 
 
 @router.websocket("/ws/stream")
-async def stream_ws(websocket: WebSocket):
+async def stream_ws(
+    websocket: WebSocket,
+    openai_key: str | None = None,
+    gemini_key: str | None = None,
+    provider: str | None = None,
+):
     await websocket.accept()
-    antispoof, speaker, transcriber, classifier, vault = _deps()
+    antispoof, speaker, transcriber, classifier, vault = get_pipeline_deps()
     buf = RollingWindowBuffer(
         sample_rate=settings.sample_rate,
         window_samples=settings.window_samples,
         stride_samples=settings.stride_samples,
     )
     await transcriber.load()
+    transcriber.reset_accum()
 
     try:
         while True:
@@ -85,7 +78,17 @@ async def stream_ws(websocket: WebSocket):
             pcm_chunk = base64.b64decode(b64)
             windows = buf.push_pcm16(pcm_chunk)
             for w in windows:
-                state = await _process_window(w, antispoof, speaker, transcriber, classifier, vault)
+                state = await _process_window(
+                    w,
+                    antispoof,
+                    speaker,
+                    transcriber,
+                    classifier,
+                    vault,
+                    openai_key=openai_key,
+                    gemini_key=gemini_key,
+                    provider=provider,
+                )
                 await websocket.send_text(state.model_dump_json())
     except WebSocketDisconnect:
         return
